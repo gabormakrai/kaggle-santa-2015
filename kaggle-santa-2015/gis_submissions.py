@@ -5,7 +5,7 @@ def gisSubmission(inputFile, outputFile, gifts):
     trips = {}
     
     output = open(outputFile, 'w')
-    output.write("tripID,wkt\n")
+    output.write("tripID;wkt\n")
     
     firstLine = True
     # open the file
