@@ -7,7 +7,7 @@ class Gift:
         self.weight = weight
 
     def __str__(self):
-        return "Gift(id:" + str(self.id) + ")"
+        return "Gift(id:" + str(self.ID) + ")"
 
 def loadGifts(fileName):
     print("Loading gifts from " + fileName + "...")
