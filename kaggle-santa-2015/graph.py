@@ -29,7 +29,27 @@ def findGifts(gifts, lat1, lat2, long1, long2):
     
     for giftId in gifts:
         gift = gifts[giftId]
-        if gift.latitude > lat1 and gift.latitude < lat2 and gift.longitude > long1 and gift.longitude < long2:
+        latitudeLower = False
+        latitudeUpper = False
+        if (gift.latitude > lat1):
+            latitudeLower = True
+        if (gift.latitude < lat2):
+            latitudeUpper = True
+        longitudeOk = False
+        if (long1 < -180.0):
+            if (gift.longitude > long1) and (gift.longitude < long2):
+                longitudeOk = True
+            if (gift.longitude > (long1 + 360.0)):
+                longitudeOk = True
+        elif (long2 > 180.0):
+            if (gift.longitude > long1) and (gift.longitude < long2):
+                longitudeOk = True
+            if (gift.longitude < (long2 - 360.0)):
+                longitudeOk = True
+        else:
+            if (gift.longitude > long1) and (gift.longitude < long2):
+                longitudeOk = True             
+        if latitudeLower == True and latitudeUpper == True and longitudeOk == True:
             giftsInRange.append(gift)
             
     return giftsInRange
@@ -61,14 +81,14 @@ def createEdges(gifts):
             lat4 = minLat + (maxLat - minLat) * ((lat + 2.0) / latRange)
             long3 = minLong + (maxLong - minLong) * ((long - 1.0) / longRange)
             long4 = minLong + (maxLong - minLong) * ((long + 2.0) / longRange)
-            #print("lat1: " + str(lat1) + ", lat2: " + str(lat2) + ", long1: " + str(long1) + ", long2: " + str(long2))
-            #print("lat3: " + str(lat3) + ", lat4: " + str(lat4) + ", long3: " + str(long3) + ", long4: " + str(long4))
+#             print("lat1: " + str(lat1) + ", lat2: " + str(lat2) + ", long1: " + str(long1) + ", long2: " + str(long2))
+#             print("lat3: " + str(lat3) + ", lat4: " + str(lat4) + ", long3: " + str(long3) + ", long4: " + str(long4))
              
             giftsInRange = findGifts(gifts, lat1, lat2, long1, long2)
             giftsInRange2 = findGifts(gifts, lat3, lat4, long3, long4)
             
-            #print("\t" + str(len(giftsInRange)))
-            #print("\t" + str(len(giftsInRange2)))
+#             print("\t" + str(len(giftsInRange)))
+#             print("\t" + str(len(giftsInRange2)))
             
             for gift1 in giftsInRange:
                 
@@ -287,3 +307,197 @@ def keepOnlyCaseStudyEdges(edges):
             edgesToRemain.append(edge)
     
     return edgesToRemain
+
+def unifySubGraphs(edges, gifts):
+    
+    # double the edges
+    edges2 = []
+    for edge in edges:
+        reverseEdge = Edge(edge.v2, edge.v1, edge.distance)
+        edges2.append(reverseEdge)
+    for edge in edges:
+        edges2.append(edge)
+    
+    # build neighbours:
+    neighbours = {}
+    for edge in edges2:
+        if edge.v1 not in neighbours:
+            neighbours[edge.v1] = []
+        neighbours[edge.v1].append(edge)
+            
+    # run tree traversal
+    visitedVertex = array.array('i',(0 for i in range(0,len(gifts)+2)))
+    previousVertex = array.array('i',(0 for i in range(0,len(gifts)+2)))
+    
+    groups = []
+    group = []
+    
+    
+    # find groups with one node:
+    for i in gifts:
+        if i not in neighbours:
+            visitedVertex[i] = 1
+            groups.append([i])
+            
+    for i in gifts:
+        if i in neighbours:
+            start = i
+            current = i
+            previousVertex[i] = i
+            break
+    
+    while True:
+        #print("current: " + str(current))
+        if visitedVertex[current] == 0:
+            group.append(current)
+        visitedVertex[current] = 1
+        
+        nextEdge = None
+        for edge in neighbours[current]:
+            if visitedVertex[edge.v2] == 0:
+                nextEdge = edge
+                break
+        
+        if nextEdge == None:
+            current = previousVertex[current]
+        else:
+            previousVertex[nextEdge.v2] = current
+            current = nextEdge.v2
+        
+        currentHasMoreNeighbours = False
+        for edge in neighbours[current]:
+            if visitedVertex[edge.v2] == 0:
+                currentHasMoreNeighbours = True
+                break
+        
+        if current == start and currentHasMoreNeighbours == False:
+            groups.append(group)
+            group = []
+            newStart = False
+            for i in range(0, len(gifts)+2):
+                if visitedVertex[i] == 0 and i in neighbours:
+                    start = i
+                    current = i
+                    previousVertex[i] = i
+                    #print("new start at " + str(i))
+                    newStart = True
+                    break
+            if newStart == False:
+                break
+
+    print("groups: " + str(len(groups)))
+    for group in groups:
+        print("group size: " + str(len(group)))
+        if len(group) < 1000:
+            minDistance = float("inf")
+            minv1 = -1
+            minv2 = -1
+            for v in group:
+                gift1 = gifts[v]
+                for giftId in gifts:
+                    gift2 = gifts[giftId] 
+                    distance = haversine((gift1.latitude, gift1.longitude), (gift2.latitude, gift2.longitude))
+                    if giftId not in group and distance < minDistance:
+                        minDistance = distance
+                        minv1 = v
+                        minv2 = giftId
+#            print("group: " + str(group))
+            edge = Edge(minv1, minv2, minDistance)
+            edges.append(edge)
+            #print(str(edge))
+    return edges
+
+def createGiftOrder(edges, gifts):
+        # find the closest node to the north pole
+        closestGiftId = -1
+        closestDistance = float("inf") 
+        for giftId in gifts:
+            gift = gifts[giftId]
+            distance = haversine((gift.latitude, gift.longitude), (90, 0))
+            if distance < closestDistance:
+                closestGiftId = giftId
+                closestDistance = distance 
+        
+        print("closestGift: " + str(gifts[closestGiftId]))
+        
+        # double the edges
+        edges2 = []
+        for edge in edges:
+            reverseEdge = Edge(edge.v2, edge.v1, edge.distance)
+            edges2.append(reverseEdge)
+        for edge in edges:
+            edges2.append(edge)
+        
+        # add edgeId to edges
+        for i in range(0, len(edges2)):
+            edges2[i].edgeId = i
+        
+        # build neighbours:
+        neighbours = {}
+        for edge in edges2:
+            if edge.v1 not in neighbours:
+                neighbours[edge.v1] = []
+            neighbours[edge.v1].append(edge)
+        
+        # run tree traversal
+        visitedVertex = array.array('i',(0 for i in range(0,len(gifts)+2)))
+        previousVertex = array.array('i',(0 for i in range(0,len(gifts)+2)))
+        
+        order = []
+        
+        current = closestGiftId
+        
+        while True:
+            if visitedVertex[current] == 0:
+                order.append(current)
+            visitedVertex[current] = 1
+            
+            nextEdge = None
+            for edge in neighbours[current]:
+                if visitedVertex[edge.v2] == 0:
+                    nextEdge = edge
+                    break
+            
+            if nextEdge == None:
+                current = previousVertex[current]
+            else:
+                previousVertex[nextEdge.v2] = current
+                current = nextEdge.v2
+                
+            if current == closestGiftId:
+                break
+            
+        return order
+    
+def writeOutOrderGIS(order, outputFile, gifts):
+    
+    output = open(outputFile, 'w')
+    output.write("pathId;wkt\n")
+    
+    output.write("0;LINESTRING(0.0 90.0")
+    for giftId in order:
+        if giftId == -2:
+            continue
+        gift = gifts[giftId]
+        output.write("," + str(gift.longitude) + " " + str(gift.latitude))
+        
+    output.write(")\n")
+    output.close()
+
+def writeOutOrder(order, outputFile):
+    output = open(outputFile, 'w')
+    for o in order:
+        output.write(str(o) + "\n")
+    output.close()
+
+# test case for gifts with longitude -179, 179...
+# gifts = {12: Gift(12, 179.0, -89.0, 10.0) }
+# giftInRange = findGifts(gifts, -92.0, -88.0, -182.0, -178.0)
+# print(str(giftInRange))
+
+def addEdge(mstEdges, gifts, id1, id2):
+    gift1 = gifts[id1]
+    gift2 = gifts[id2]
+    distance = haversine((gift1.latitude, gift1.longitude), (gift2.latitude, gift2.longitude))
+    mstEdges.append(Edge(id1, id2, distance))
+    
