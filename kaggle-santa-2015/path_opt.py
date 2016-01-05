@@ -4,7 +4,7 @@ from random import randint
 def optimizeOrder(gifts, order):
     orderLength = calculatePathLength(gifts, order)
     
-    iterationLimit = 10000
+    iterationLimit = 1000
     
     iteration = 0
     print("length: " + str(orderLength))
